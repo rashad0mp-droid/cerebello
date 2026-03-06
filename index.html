@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Cerebello — Learn Anything</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>pdfjsLib=window['pdfjs-dist/build/pdf']||window.pdfjsLib;</script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300;1,9..144,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -177,7 +179,11 @@ body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;f
 .rr-ttl{font-size:13px;font-weight:500;color:var(--ink);line-height:1.4;margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .rr-url{font-size:11px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
 .rr-snip{font-size:12px;color:var(--ink2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.rr-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface)}
+.res-filter{background:var(--white);border:1.5px solid var(--border);border-radius:20px;padding:5px 13px;font-size:11.5px;font-family:'DM Sans',sans-serif;font-weight:500;color:var(--ink2);cursor:pointer;transition:all .15s}
+.res-filter:hover{border-color:var(--accent);color:var(--accent)}
+.res-filter.active{background:var(--accent);border-color:var(--accent);color:white}
+.rr-more-btn{width:100%;padding:10px;background:var(--surface);border:1.5px dashed var(--border2);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;color:var(--ink2);cursor:pointer;transition:all .2s;margin-top:6px}
+.rr-more-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(45,106,79,.04)}padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface)}
 .rr-sel-count{font-size:12.5px;color:var(--ink2);font-weight:500}
 .rr-add-sel{background:var(--accent);color:white;border:none;border-radius:9px;padding:9px 20px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(45,106,79,.25)}
 .rr-add-sel:hover{background:#245a42;transform:translateY(-1px)}
@@ -673,7 +679,13 @@ function rC(){
         <div class="research-lbl">🔍 AI Research</div>
         <input class="research-input" id="resInput" placeholder="Search for resources…" value="${e(subj.name)}" onkeydown="if(event.key==='Enter')doResearch()">
         <button class="research-btn" id="resSrchBtn" onclick="doResearch()">🔍 Search</button>
-        <button class="research-btn" onclick="toggleResearch()" style="background:var(--surface);color:var(--ink2);border:1px solid var(--border);box-shadow:none">✕ Close</button>
+        <button class="research-btn" onclick="toggleResearch()" style="background:var(--surface);color:var(--ink2);border:1px solid var(--border);box-shadow:none">✕</button>
+      </div>
+      <div style="display:flex;gap:6px;padding:0 0 10px 0;flex-wrap:wrap">
+        <button class="res-filter active" id="rf-all" onclick="setResFilter('all')">🌐 All</button>
+        <button class="res-filter" id="rf-video" onclick="setResFilter('video')">▶ Videos</button>
+        <button class="res-filter" id="rf-article" onclick="setResFilter('article')">📄 Articles</button>
+        <button class="res-filter" id="rf-course" onclick="setResFilter('course')">🎓 Paid Courses</button>
       </div>
       <div id="resResults"></div>
     </div>`;
@@ -691,7 +703,7 @@ function cl(l){const th=l.thumbnail;return`<div class="lcard" onclick="odm('${l.
 
 function showW(){
   document.getElementById('tb').style.display='none';
-  document.getElementById('ca').innerHTML=`<div class="welcome"><div class="w-icon">🧠</div><div class="w-title">Welcome to <em>Cerebello</em></div><div class="w-desc">Create a subject you want to learn, then use AI to research and build your personal knowledge library.</div><div class="w-pills"><div class="w-pill">📚 Subjects</div><div class="w-pill">🔍 AI Research</div><div class="w-pill">✨ Video Summaries</div><div class="w-pill">☁️ Synced</div></div><button class="add-btn" style="margin-top:16px" onclick="osm()">＋ Create First Subject</button></div>`;
+  document.getElementById('ca').innerHTML=`<div class="welcome"><div class="w-icon">🧠</div><div class="w-title">Welcome to <em>Cerebello</em></div><div class="w-desc">Create a subject you want to learn, then use AI to research and build your personal knowledge library.</div><div class="w-pills"><div class="w-pill">📚 Subjects</div><div class="w-pill">🔍 AI Research</div><div class="w-pill">✨ Video Summaries</div><div class="w-pill">☁️ Synced</div></div><button class="add-btn" style="margin-top:16px" onclick="osm()">＋ Create Subject</button></div>`;
 }
 
 // Toggle research panel
@@ -704,26 +716,62 @@ window.toggleResearch=function(){
 };
 
 // RESEARCH with Tavily
-window.doResearch=async function(){
+let resFilter='all';
+let resPage=0;
+
+window.setResFilter=function(f){
+  resFilter=f;
+  ['all','video','article','course'].forEach(x=>{
+    const el=document.getElementById(`rf-${x}`);
+    if(el) el.classList.toggle('active',x===f);
+  });
+  resPage=0;
+  S.resResults=[];
+  S.resSelected=new Set();
+  S.resAdded=new Set();
+  doResearch();
+};
+
+function buildQuery(q,filter){
+  const year=new Date().getFullYear();
+  if(filter==='video') return `site:youtube.com ${q} tutorial ${year}`;
+  if(filter==='article') return `${q} tutorial guide blog ${year} -site:youtube.com -site:udemy.com -site:coursera.org`;
+  if(filter==='course') return `${q} course udemy coursera skillshare OR pluralsight OR edx`;
+  return `best resources learn ${q} ${year}`;
+}
+
+window.doResearch=async function(loadMore=false){
   const input=document.getElementById('resInput'),btn=document.getElementById('resSrchBtn'),resDiv=document.getElementById('resResults');
   const q=input?.value?.trim();
   if(!q||!resDiv)return;
+  if(!loadMore){resPage=0;S.resResults=[];S.resSelected=new Set();S.resAdded=new Set();}
   btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Searching…';
-  resDiv.innerHTML='';
-  S.resSelected=new Set();
+  if(!loadMore) resDiv.innerHTML='';
   try{
+    const query=buildQuery(q,resFilter);
     const res=await fetch('https://api.tavily.com/search',{
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
-      body:JSON.stringify({query:`best resources to learn ${q}`,search_depth:'basic',include_answer:false,max_results:8})
+      body:JSON.stringify({
+        query,
+        search_depth:'advanced',
+        include_answer:false,
+        max_results:8,
+        days:180 // last 6 months for freshness
+      })
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.message||'Research failed');
-    S.resResults=data.results||[];
+    const newResults=data.results||[];
+    // Deduplicate against existing results
+    const existingUrls=new Set(S.resResults.map(r=>r.url));
+    const fresh=newResults.filter(r=>!existingUrls.has(r.url));
+    S.resResults=[...S.resResults,...fresh];
+    resPage++;
     if(!S.resResults.length){resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--ink3);text-align:center">No results found. Try a different search.</div>`;return}
     renderResResults();
   }catch(err){
-    resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--red)">Research error: ${err.message}</div>`;
+    if(!loadMore) resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--red)">Research error: ${err.message}</div>`;
   }finally{
     btn.disabled=false;btn.innerHTML='🔍 Search';
   }
@@ -749,7 +797,9 @@ function renderResResults(){
   html+=`<div class="rr-footer">
     <div class="rr-sel-count" id="rrSelCount">Tap items to select</div>
     <button class="rr-add-sel" id="rrAddBtn" onclick="addSelectedResults()" disabled>＋ Add Selected</button>
-  </div></div>`;
+  </div>
+  <button class="rr-more-btn" onclick="doResearch(true)">🔍 More Sources</button>
+  </div>`;
   resDiv.innerHTML=html;
 }
 
@@ -1004,21 +1054,28 @@ function isGeneric(parsed){
   return genericCount>=2||!parsed.takeaways?.length||parsed.takeaways.length<3;
 }
 
-function renderSummaryHTML(takeaways,l,isSaved){
+function renderSummaryHTML(takeaways,l,isSaved,progressMsg=null){
   const isVideo=isYT(l.url);
   const vid=isVideo?ytId(l.url):null;
   const baseUrl=vid?`https://www.youtube.com/watch?v=${vid}`:'';
-  const label=isSaved?'✨ Saved Summary':'✨ AI Summary';
-  let html=`<div class="ai-summary-box"><div class="ai-summary-hd">${label} — ${e(l.title)}</div><div class="ai-summary-body">`;
+  const label=isSaved?'✨ Saved Summary':progressMsg?'✨ AI Summary — Processing…':'✨ AI Summary';
+  let html=`<div class="ai-summary-box"><div class="ai-summary-hd">${label} — ${e(l.title)}</div>`;
+  if(progressMsg){
+    html+=`<div style="padding:6px 15px;font-size:11.5px;color:var(--accent);display:flex;align-items:center;gap:6px;background:rgba(45,106,79,.05);border-bottom:1px solid rgba(45,106,79,.1)"><span class="spin" style="display:inline-block">⟳</span>${progressMsg}</div>`;
+  }
+  html+=`<div class="ai-summary-body">`;
   takeaways.forEach((t,i)=>{
     html+=`<div class="ai-takeaway"><div class="ai-num">${i+1}</div><div class="ai-point"><div class="ai-point-text">${e(t.point)}</div>`;
     if(isVideo&&t.timestamp){html+=`<a class="ai-ts" href="${baseUrl}&t=${t.seconds||0}" target="_blank" rel="noopener">▶ ${t.timestamp}</a>`}
     html+=`</div></div>`;
   });
-  const changeAction=isVideo?'summarizeVideo()':'summarizeVideo()';
-  html+=`</div><div class="ai-summary-actions">
-    ${isSaved?'<button class="ai-save-btn saved" disabled>✓ Saved</button>':`<button class="ai-save-btn" id="aiSaveBtn" onclick="saveAISummary()">💾 Save Summary</button>`}
-    <button class="ai-change-btn" onclick="${changeAction}">↻ ${isSaved?'Re-summarize':'Change'}</button>
+  html+=`</div>
+  <div class="ai-summary-actions">
+    ${isSaved
+      ?'<button class="ai-save-btn saved" disabled>✓ Saved</button>'
+      :`<button class="ai-save-btn" id="aiSaveBtn" onclick="saveAISummary()">💾 Save Summary</button>`}
+    <button class="ai-change-btn" onclick="summarizeVideo()">↻ ${isSaved?'Re-summarize':'Change'}</button>
+    <button class="ai-change-btn" onclick="copySummary()" id="aiCopyBtn" title="Copy all takeaways">📋 Copy</button>
   </div></div>`;
   return html;
 }
@@ -1043,17 +1100,59 @@ window.summarizeVideo=async function(){
     } else if(isPdf){
       btn.innerHTML='<span class="spin">⟳</span> Reading PDF…';
       const cleanUrl=l.url.replace('/fl_attachment','');
-      let content='';
       try{
-        const tr=await fetch('https://api.tavily.com/extract',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
-          body:JSON.stringify({urls:[cleanUrl]})
-        });
-        const td=await tr.json();
-        content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
-      }catch(ex){content='';}
-      if(!content||content.length<100) throw new Error('Could not extract PDF text. The PDF may be scanned or image-based.');
+        const pdfjs=window.pdfjsLib;
+        if(!pdfjs) throw new Error('PDF reader not loaded. Please refresh the page.');
+        pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const loadingTask=pdfjs.getDocument({url:cleanUrl,withCredentials:false});
+        const pdf=await loadingTask.promise;
+        const totalPages=pdf.numPages;
+        const chunkSize=20;
+        let allTakeaways=[];
+
+        const readChunk=async(startPage)=>{
+          const endPage=Math.min(startPage+chunkSize-1,totalPages);
+          btn.innerHTML=`<span class="spin">⟳</span> Reading pages ${startPage}–${endPage} of ${totalPages}…`;
+          let chunkText='';
+          for(let i=startPage;i<=endPage;i++){
+            const page=await pdf.getPage(i);
+            const tc=await page.getTextContent();
+            chunkText+=tc.items.map(s=>s.str).join(' ')+'\n';
+          }
+          if(!chunkText.trim()||chunkText.trim().length<50) return;
+          btn.innerHTML=`<span class="spin">⟳</span> Summarizing pages ${startPage}–${endPage}…`;
+          const isFirst=allTakeaways.length===0;
+          const prompt=isFirst
+            ?`Here is content from pages ${startPage}-${endPage} of a PDF titled "${l.title}":\n\n${chunkText.slice(0,12000)}\n\nExtract 5-8 key takeaways. Respond ONLY in valid JSON:\n{"takeaways":[{"point":"Insight","timestamp":"","seconds":0}]}`
+            :`Here is MORE content from pages ${startPage}-${endPage} of the same PDF titled "${l.title}":\n\n${chunkText.slice(0,12000)}\n\nExtract 3-5 ADDITIONAL key takeaways not already covered. Respond ONLY in valid JSON:\n{"takeaways":[{"point":"New insight","timestamp":"","seconds":0}]}`;
+          const res=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENROUTER_KEY}`,'HTTP-Referer':'https://cerebello.vercel.app','X-Title':'Cerebello'},
+            body:JSON.stringify({model:'openrouter/free',messages:[{role:'user',content:prompt}]})
+          });
+          const data=await res.json();
+          let text=data.choices?.[0]?.message?.content||'{}';
+          text=text.replace(/```json|```/g,'').trim();
+          try{
+            const parsed=JSON.parse(text);
+            allTakeaways=[...allTakeaways,...(parsed.takeaways||[])];
+            S.aiSummaryData=allTakeaways;
+            const isComplete=endPage>=totalPages;
+            result.innerHTML=renderSummaryHTML(allTakeaways,l,false,isComplete?null:`Processing… (${endPage} of ${totalPages} pages read)`);
+          }catch(e){}
+        };
+
+        for(let startPage=1;startPage<=totalPages;startPage+=chunkSize){
+          await readChunk(startPage);
+        }
+        if(!allTakeaways.length) throw new Error('Could not extract readable text. PDF may be scanned or image-based.');
+        result.innerHTML=renderSummaryHTML(allTakeaways,l,false,null);
+        S.aiSummaryData=allTakeaways;
+        btn.innerHTML='<span>✨</span> Re-summarize';btn.disabled=false;
+        return;
+      }catch(pdfErr){
+        throw new Error(pdfErr.message||'Could not read PDF.');
+      }
     } else {
       btn.innerHTML='<span class="spin">⟳</span> Reading article…';
       const tr=await fetch(`https://api.tavily.com/extract`,{
@@ -1083,7 +1182,17 @@ window.summarizeVideo=async function(){
   }
 };
 
-window.saveAISummary=async function(){
+window.copySummary=function(){
+  if(!S.aiSummaryData||!S.aiSummaryData.length)return;
+  const l=S.links.find(l=>l.id===S.dlid);
+  const title=l?l.title:'Summary';
+  const text=`📚 ${title}\n\n`+S.aiSummaryData.map((t,i)=>`${i+1}. ${t.point}`).join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.getElementById('aiCopyBtn');
+    if(btn){btn.textContent='✓ Copied!';setTimeout(()=>btn.textContent='📋 Copy',2000)}
+    toast('📋 Copied to clipboard!','success');
+  }).catch(()=>toast('Could not copy','err'));
+};
   if(!S.aiSummaryData||!S.dlid)return;
   const btn=document.getElementById('aiSaveBtn');
   btn.disabled=true;btn.innerHTML='💾 Saving…';
