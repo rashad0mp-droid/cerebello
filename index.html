@@ -1036,7 +1036,7 @@ async function callAI(content,title,isVideo){
   const prompt=isVideo
     ?`Here is the transcript of a YouTube video titled "${title}":\n\n---\n${content.slice(0,12000)}\n---\n\nExtract 6-10 specific key takeaways with real timestamps from this specific video.\n\nRespond ONLY with valid JSON, no markdown:\n{"takeaways":[{"point":"Specific insight from this video","timestamp":"0:45","seconds":45}]}`
     :`Here is the content of an article titled "${title}":\n\n---\n${content.slice(0,12000)}\n---\n\nExtract 6-10 specific key takeaways from this article. For articles there are no timestamps so use empty string and 0.\n\nRespond ONLY with valid JSON, no markdown:\n{"takeaways":[{"point":"Specific insight from this article","timestamp":"","seconds":0}]}`;
-  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,{
+  const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
@@ -1139,7 +1139,7 @@ window.summarizeVideo=async function(){
           const prompt=isFirst
             ?`Here is content from pages ${startPage}-${endPage} of a PDF titled "${l.title}":\n\n${chunkText.slice(0,12000)}\n\nExtract 5-8 key takeaways. Respond ONLY in valid JSON:\n{"takeaways":[{"point":"Insight","timestamp":"","seconds":0}]}`
             :`Here is MORE content from pages ${startPage}-${endPage} of the same PDF titled "${l.title}":\n\n${chunkText.slice(0,12000)}\n\nExtract 3-5 ADDITIONAL key takeaways not already covered. Respond ONLY in valid JSON:\n{"takeaways":[{"point":"New insight","timestamp":"","seconds":0}]}`;
-          const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,{
+          const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_KEY}`,{
             method:'POST',
             headers:{'Content-Type':'application/json'},
             body:JSON.stringify({contents:[{parts:[{text:prompt}]}]})
