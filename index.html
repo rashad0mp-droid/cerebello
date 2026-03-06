@@ -949,14 +949,12 @@ window.odm=function(id){
 
   // Thumbnail / preview area
   if(l.type==='pdf'){
-    // Clean URL — remove any fl_attachment if present
     const cleanUrl=l.url.replace('/fl_attachment','');
     const googleViewerUrl=`https://docs.google.com/viewer?url=${encodeURIComponent(cleanUrl)}&embedded=true`;
     document.getElementById('dthc').innerHTML=`
-    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-      <span style="font-size:22px">📄</span>
-      <span style="font-size:13px;font-weight:500;color:var(--ink);flex:1">${e(l.title)}</span>
-      <a href="${e(cleanUrl)}" target="_blank" rel="noopener" class="olnk" style="font-size:11.5px">Open PDF ↗</a>
+    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:10px 18px;display:flex;align-items:center;gap:8px">
+      <span style="font-size:18px">📄</span>
+      <span style="font-size:12.5px;font-weight:500;color:var(--ink2);flex:1">${e(l.title)}</span>
     </div>
     <iframe src="${googleViewerUrl}" style="width:100%;height:340px;border:none;display:block;background:var(--surface)" title="${e(l.title)}"></iframe>`;
   } else if(l.thumbnail){
@@ -1044,17 +1042,19 @@ window.summarizeVideo=async function(){
       if(!content||content.length<100) throw new Error('Transcript too short for this video');
     } else if(isPdf){
       btn.innerHTML='<span class="spin">⟳</span> Reading PDF…';
-      // Clean URL
       const cleanUrl=l.url.replace('/fl_attachment','');
-      // Use Tavily to extract PDF text content
-      const tr=await fetch('https://api.tavily.com/extract',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({api_key:TAVILY_KEY,urls:[cleanUrl]})
-      });
-      const td=await tr.json();
-      content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
-      if(!content||content.length<100) throw new Error('Could not extract PDF text. Make sure the PDF contains readable text (not scanned images).');
+      // Try Tavily extract first
+      let content='';
+      try{
+        const tr=await fetch('https://api.tavily.com/extract',{
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({api_key:TAVILY_KEY,urls:[cleanUrl]})
+        });
+        const td=await tr.json();
+        content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
+      }catch(ex){content='';}
+      if(!content||content.length<100) throw new Error('Could not extract PDF text. The PDF may be scanned or image-based — text extraction requires a text-based PDF.');
     } else {
       btn.innerHTML='<span class="spin">⟳</span> Reading article…';
       const tr=await fetch(`https://api.tavily.com/extract`,{
