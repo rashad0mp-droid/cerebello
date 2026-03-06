@@ -872,13 +872,14 @@ async function uploadPdfToCloudinary(file){
   const fd=new FormData();
   fd.append('file',file);
   fd.append('upload_preset',CLOUDINARY_PRESET);
-  fd.append('resource_type','raw');
-  // Use raw endpoint for PDFs so they are accessible as files not images
   const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/raw/upload`,{method:'POST',body:fd});
   const data=await res.json();
   if(!res.ok) throw new Error(data.error?.message||'Upload failed');
-  // Ensure URL ends with .pdf for proper serving
-  return data.secure_url;
+  // Force correct content-type by adding fl_attachment flag in URL
+  let url=data.secure_url;
+  // Replace /upload/ with /upload/fl_attachment/ to force proper PDF serving
+  url=url.replace('/upload/','/upload/fl_attachment/');
+  return url;
 }
 window.olm=function(id=null){
   S.elid=id;
