@@ -437,7 +437,6 @@ body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;f
       <div class="topbar" id="tb" style="display:none">
         <div class="tb-title" id="tbt"></div>
         <div class="vpills"><button class="vp active" id="vg" onclick="sv('grid')">⊞ Grid</button><button class="vp" id="vl" onclick="sv('list')">☰ List</button></div>
-        <button class="add-btn" onclick="olm()">＋ <span class="albl">Add Resource</span></button>
       </div>
       <div class="content" id="ca">
         <div class="welcome">
@@ -690,6 +689,7 @@ function rC(){
           <button class="res-filter" id="rf-course" onclick="setResFilter('course')">🎓 Courses</button>
         </div>
         <button class="research-btn" id="resSrchBtn" onclick="doResearch()">Search</button>
+        <button class="research-btn" onclick="olm()" style="background:var(--accent);white-space:nowrap">＋ Add Manually</button>
       </div>
       <div id="resResults"></div>
     </div>`;
@@ -742,100 +742,89 @@ window.doResearch=async function(loadMore=false){
   const input=document.getElementById('resInput'),btn=document.getElementById('resSrchBtn'),resDiv=document.getElementById('resResults');
   const q=input?.value?.trim();
   if(!q||!resDiv)return;
-  if(!loadMore){resPage=0;S.resResults=[];S.resSelected=new Set();S.resAdded=new Set();}
-  btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Searching…';
-  if(!loadMore) resDiv.innerHTML='';
+  if(!loadMore){resPage=0;S.resResults=[];S.resSelected=new Set();S.resAdded=new Set();resDiv.innerHTML='';}
+  // Show loading in more button if loadMore
+  const moreBtn=document.getElementById('rrMoreBtn');
+  if(loadMore&&moreBtn){moreBtn.disabled=true;moreBtn.innerHTML='<span class="spin">⟳</span> Finding more…';}
+  else{btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Searching…';}
   try{
-    const query=buildQuery(q,resFilter);
+    // Use different offset for more results
+    const query=buildQuery(q,resFilter)+(loadMore?` more results page ${resPage+1}`:'');
     const res=await fetch('https://api.tavily.com/search',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        api_key:TAVILY_KEY,
-        query,
-        search_depth:'advanced',
-        include_answer:false,
-        max_results:8,
-        days:180
-      })
+      body:JSON.stringify({api_key:TAVILY_KEY,query,search_depth:'advanced',include_answer:false,max_results:8,days:180})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.message||'Research failed');
     const newResults=data.results||[];
-    // Deduplicate against existing results
     const existingUrls=new Set(S.resResults.map(r=>r.url));
     const fresh=newResults.filter(r=>!existingUrls.has(r.url));
+    if(!fresh.length&&loadMore){
+      if(moreBtn){moreBtn.disabled=false;moreBtn.innerHTML='🔍 More Sources';}
+      return;
+    }
     S.resResults=[...S.resResults,...fresh];
     resPage++;
-    if(!S.resResults.length){resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--ink3);text-align:center">No results found. Try a different search.</div>`;return}
-    renderResResults(loadMore);
+    if(!S.resResults.length){resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--ink3);text-align:center">No results found.</div>`;return;}
+    renderResResults(loadMore,fresh);
   }catch(err){
-    if(!loadMore) resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--red)">Research error: ${err.message}</div>`;
+    if(!loadMore) resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--red)">Error: ${err.message}</div>`;
   }finally{
-    btn.disabled=false;btn.innerHTML='🔍 Search';
+    btn.disabled=false;btn.innerHTML='Search';
+    const mb=document.getElementById('rrMoreBtn');
+    if(mb){mb.disabled=false;mb.innerHTML='🔍 More Sources';}
   }
 };
 
-function renderResResults(loadMore=false){
+function renderResResults(loadMore=false,newItems=null){
   const resDiv=document.getElementById('resResults');
   if(!resDiv)return;
+  const itemsToRender=loadMore&&newItems?newItems:S.resResults;
+  const startIdx=loadMore&&newItems?S.resResults.length-newItems.length:0;
 
-  if(loadMore){
-    // Remove old footer and more button
-    resDiv.querySelector('.rr-footer')?.remove();
-    resDiv.querySelector('.rr-more-btn')?.remove();
-    // Append only new items
-    const prevCount=resDiv.querySelectorAll('.rr-item').length;
-    S.resResults.slice(prevCount).forEach((r,idx)=>{
-      const i=prevCount+idx;
-      const favicon=`https://www.google.com/s2/favicons?sz=32&domain=${dom(r.url)}`;
-      const isAdded=S.resAdded&&S.resAdded.has(i);
-      const item=document.createElement('div');
-      item.className=`rr-item${isAdded?' added-perm':''}`;
-      item.id=`rri${i}`;
-      item.onclick=()=>toggleSelect(i);
-      item.innerHTML=`<div class="rr-check" id="rrck${i}">${isAdded?'✓':''}</div>
-        <div class="rr-favicon"><img src="${favicon}" alt="" onerror="this.parentElement.textContent='🌐'"></div>
-        <div class="rr-inf">
-          <div class="rr-ttl">${e(r.title)}</div>
-          <div class="rr-url">${e(dom(r.url))}</div>
-          <div class="rr-snip">${e(r.content?.slice(0,150)||'')}</div>
-        </div>`;
-      resDiv.querySelector('.research-results').appendChild(item);
-    });
-  } else {
-    let html=`<div class="research-results"><div class="rr-head"><div class="rr-title">🔍 Results <span style="background:var(--surface);padding:2px 8px;border-radius:20px;font-size:10px;color:var(--ink3)">${S.resResults.length}</span></div><button class="rr-close" onclick="document.getElementById('resResults').innerHTML=''">✕</button></div>`;
+  if(!loadMore){
+    // Full render
+    let html=`<div class="research-results" id="rrWrap">`;
     S.resResults.forEach((r,i)=>{
-      const favicon=`https://www.google.com/s2/favicons?sz=32&domain=${dom(r.url)}`;
-      const isAdded=S.resAdded&&S.resAdded.has(i);
-      html+=`<div class="rr-item${isAdded?' added-perm':''}" id="rri${i}" onclick="toggleSelect(${i})">
-        <div class="rr-check" id="rrck${i}">${isAdded?'✓':''}</div>
-        <div class="rr-favicon"><img src="${favicon}" alt="" onerror="this.parentElement.textContent='🌐'"></div>
-        <div class="rr-inf">
-          <div class="rr-ttl">${e(r.title)}</div>
-          <div class="rr-url">${e(dom(r.url))}</div>
-          <div class="rr-snip">${e(r.content?.slice(0,150)||'')}</div>
-        </div>
-      </div>`;
+      html+=rrItemHTML(r,i);
     });
-    resDiv.innerHTML=html+'</div>';
-  }
-
-  // Always add footer and more button at end
-  const wrap=resDiv.querySelector('.research-results');
-  if(wrap){
-    const footer=document.createElement('div');
-    footer.className='rr-footer';
-    footer.innerHTML=`<div class="rr-sel-count" id="rrSelCount">Tap items to select</div>
-      <button class="rr-add-sel" id="rrAddBtn" onclick="addSelectedResults()" disabled>＋ Add Selected</button>`;
-    wrap.appendChild(footer);
-    const moreBtn=document.createElement('button');
-    moreBtn.className='rr-more-btn';
-    moreBtn.textContent='🔍 More Sources';
-    moreBtn.onclick=()=>doResearch(true);
-    wrap.appendChild(moreBtn);
+    html+=`<div class="rr-footer">
+      <div class="rr-sel-count" id="rrSelCount">Tap items to select</div>
+      <button class="rr-add-sel" id="rrAddBtn" onclick="addSelectedResults()" disabled>＋ Add Selected</button>
+    </div>
+    <button class="rr-more-btn" id="rrMoreBtn" onclick="doResearch(true)">🔍 More Sources</button>
+    </div>`;
+    resDiv.innerHTML=html;
+  } else {
+    // Append new items before footer
+    const wrap=document.getElementById('rrWrap');
+    const footer=wrap?.querySelector('.rr-footer');
+    if(wrap&&footer){
+      newItems.forEach((r,idx)=>{
+        const i=startIdx+idx;
+        const div=document.createElement('div');
+        div.innerHTML=rrItemHTML(r,i);
+        wrap.insertBefore(div.firstChild,footer);
+      });
+    }
   }
 }
+
+function rrItemHTML(r,i){
+  const isAdded=S.resAdded&&S.resAdded.has(i);
+  const favicon=`https://www.google.com/s2/favicons?sz=32&domain=${dom(r.url)}`;
+  return `<div class="rr-item${isAdded?' added-perm':''}" id="rri${i}" onclick="toggleSelect(${i})">
+    <div class="rr-check" id="rrck${i}">${isAdded?'✓':''}</div>
+    <div class="rr-favicon"><img src="${favicon}" alt="" onerror="this.parentElement.textContent='🌐'"></div>
+    <div class="rr-inf">
+      <div class="rr-ttl">${e(r.title)}</div>
+      <div class="rr-url">${e(dom(r.url))}</div>
+      <div class="rr-snip">${e(r.content?.slice(0,150)||'')}</div>
+    </div>
+  </div>`;
+}
+
 
 window.toggleSelect=function(i){
   if(S.resAdded&&S.resAdded.has(i))return;
