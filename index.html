@@ -943,24 +943,22 @@ window.qdl=async function(id){
 window.odm=function(id){
   const l=S.links.find(l=>l.id===id);if(!l)return;S.dlid=id;
   document.getElementById('dt').textContent=l.title;
-  document.getElementById('du').textContent=l.url;document.getElementById('du').href=l.url;
-  document.getElementById('doa').href=l.url;document.getElementById('dn').value=l.note||'';
+  document.getElementById('du').textContent=l.url.replace('/fl_attachment','');
+  document.getElementById('du').href=l.url.replace('/fl_attachment','');
+  document.getElementById('doa').href=l.url.replace('/fl_attachment','');document.getElementById('dn').value=l.note||'';
 
   // Thumbnail / preview area
   if(l.type==='pdf'){
+    // Clean URL — remove any fl_attachment if present
+    const cleanUrl=l.url.replace('/fl_attachment','');
+    const googleViewerUrl=`https://docs.google.com/viewer?url=${encodeURIComponent(cleanUrl)}&embedded=true`;
     document.getElementById('dthc').innerHTML=`
     <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span style="font-size:22px">📄</span>
       <span style="font-size:13px;font-weight:500;color:var(--ink);flex:1">${e(l.title)}</span>
-      <a href="${e(l.url)}" target="_blank" rel="noopener" class="olnk" style="font-size:11.5px">⬇ Download PDF</a>
+      <a href="${e(cleanUrl)}" target="_blank" rel="noopener" class="olnk" style="font-size:11.5px">Open PDF ↗</a>
     </div>
-    <object data="${e(l.url)}" type="application/pdf" style="width:100%;height:320px;display:block;border:none;background:var(--surface)">
-      <div style="padding:20px;text-align:center;color:var(--ink3);font-size:13px">
-        <div style="font-size:32px;margin-bottom:8px">📄</div>
-        Browser can't preview this PDF.<br>
-        <a href="${e(l.url)}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:600">Click here to open it ↗</a>
-      </div>
-    </object>`;
+    <iframe src="${googleViewerUrl}" style="width:100%;height:340px;border:none;display:block;background:var(--surface)" title="${e(l.title)}"></iframe>`;
   } else if(l.thumbnail){
     document.getElementById('dthc').innerHTML=`<img class="dth" src="${e(l.thumbnail)}" onerror="this.parentElement.innerHTML='<div class=dthp>${tEm(l.type)}</div>'" alt="">`;
   } else {
@@ -1046,34 +1044,17 @@ window.summarizeVideo=async function(){
       if(!content||content.length<100) throw new Error('Transcript too short for this video');
     } else if(isPdf){
       btn.innerHTML='<span class="spin">⟳</span> Reading PDF…';
-      // Fetch PDF and convert to base64
-      const pdfRes=await fetch(l.url);
-      if(!pdfRes.ok) throw new Error('Could not fetch PDF');
-      const blob=await pdfRes.blob();
-      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
-      btn.innerHTML='<span class="spin">⟳</span> Summarizing PDF…';
-      // Use Anthropic Claude API directly — it reads PDFs natively
-      const aiRes=await fetch('https://api.anthropic.com/v1/messages',{
+      // Clean URL
+      const cleanUrl=l.url.replace('/fl_attachment','');
+      // Use Tavily to extract PDF text content
+      const tr=await fetch('https://api.tavily.com/extract',{
         method:'POST',
-        headers:{'Content-Type':'application/json','x-api-key':'','anthropic-version':'2023-06-01'},
-        body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
-          max_tokens:1000,
-          messages:[{role:'user',content:[
-            {type:'document',source:{type:'base64',media_type:'application/pdf',data:base64}},
-            {type:'text',text:`Extract 6-10 specific key takeaways from this PDF titled "${l.title}". Respond ONLY with valid JSON, no markdown:\n{"takeaways":[{"point":"Specific insight","timestamp":"","seconds":0}]}`}
-          ]}]
-        })
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({api_key:TAVILY_KEY,urls:[cleanUrl]})
       });
-      const aiData=await aiRes.json();
-      if(!aiRes.ok) throw new Error(aiData.error?.message||'AI error');
-      let text=aiData.content?.[0]?.text||'';
-      text=text.replace(/```json|```/g,'').trim();
-      const parsed=JSON.parse(text);
-      result.innerHTML=renderSummaryHTML(parsed.takeaways,l,false);
-      S.aiSummaryData=parsed.takeaways;
-      btn.innerHTML='<span>✨</span> Re-summarize';btn.disabled=false;
-      return;
+      const td=await tr.json();
+      content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
+      if(!content||content.length<100) throw new Error('Could not extract PDF text. Make sure the PDF contains readable text (not scanned images).');
     } else {
       btn.innerHTML='<span class="spin">⟳</span> Reading article…';
       const tr=await fetch(`https://api.tavily.com/extract`,{
