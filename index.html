@@ -749,7 +749,7 @@ window.doResearch=async function(loadMore=false){
     const query=buildQuery(q,resFilter);
     const res=await fetch('https://api.tavily.com/search',{
       method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         api_key:TAVILY_KEY,
         query,
@@ -1005,7 +1005,9 @@ window.odm=function(id){
       <span style="font-size:18px">📄</span>
       <span style="font-size:12.5px;font-weight:500;color:var(--ink2);flex:1">${e(l.title)}</span>
     </div>
-    <iframe src="${googleViewerUrl}" style="width:100%;height:340px;border:none;display:block;background:var(--surface)" title="${e(l.title)}"></iframe>`;
+    <div style="width:100%;height:340px;overflow:auto;background:var(--surface)">
+      <iframe src="${googleViewerUrl}" style="width:100%;height:100%;border:none;display:block" title="${e(l.title)}"></iframe>
+    </div>`;
   } else if(l.thumbnail){
     document.getElementById('dthc').innerHTML=`<img class="dth" src="${e(l.thumbnail)}" onerror="this.parentElement.innerHTML='<div class=dthp>${tEm(l.type)}</div>'" alt="">`;
   } else {
@@ -1093,9 +1095,9 @@ window.summarizeVideo=async function(){
       if(!vid) throw new Error('Could not extract video ID');
       const tr=await fetch(`https://api.supadata.ai/v1/youtube/transcript?videoId=${vid}&text=true`,{headers:{'x-api-key':SUPADATA_KEY}});
       const td=await tr.json();
-      if(!tr.ok) throw new Error(td.message||'Transcript unavailable');
+      if(!tr.ok) throw new Error(`Supadata error (${tr.status}): ${JSON.stringify(td)}`);
       content=td.content;
-      if(!content||content.length<100) throw new Error('Transcript too short for this video');
+      if(!content||content.length<100) throw new Error('Transcript too short or unavailable for this video');
     } else if(isPdf){
       btn.innerHTML='<span class="spin">⟳</span> Loading PDF reader…';
       const cleanUrl=l.url.replace('/fl_attachment','');
@@ -1169,7 +1171,7 @@ window.summarizeVideo=async function(){
       btn.innerHTML='<span class="spin">⟳</span> Reading article…';
       const tr=await fetch(`https://api.tavily.com/extract`,{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
+        headers:{'Content-Type':'application/json'},
         body:JSON.stringify({api_key:TAVILY_KEY,urls:[l.url]})
       });
       const td=await tr.json();
