@@ -434,7 +434,7 @@ body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;f
           <div class="w-title">Welcome to <em>Cerebello</em></div>
           <div class="w-desc">Create a subject you want to learn, then use AI to research and build your personal knowledge library.</div>
           <div class="w-pills"><div class="w-pill">📚 Subjects</div><div class="w-pill">🔍 AI Research</div><div class="w-pill">✨ Video Summaries</div><div class="w-pill">☁️ Synced</div></div>
-          <button class="add-btn" style="margin-top:16px" onclick="osm()">＋ Create First Subject</button>
+          <button class="add-btn" style="margin-top:16px" onclick="osm()">＋ Create Subject</button>
         </div>
       </div>
     </main>
@@ -714,8 +714,8 @@ window.doResearch=async function(){
   try{
     const res=await fetch('https://api.tavily.com/search',{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({api_key:TAVILY_KEY,query:`best resources to learn ${q}`,search_depth:'basic',include_answer:false,max_results:8})
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
+      body:JSON.stringify({query:`best resources to learn ${q}`,search_depth:'basic',include_answer:false,max_results:8})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.message||'Research failed');
@@ -1043,24 +1043,23 @@ window.summarizeVideo=async function(){
     } else if(isPdf){
       btn.innerHTML='<span class="spin">⟳</span> Reading PDF…';
       const cleanUrl=l.url.replace('/fl_attachment','');
-      // Try Tavily extract first
       let content='';
       try{
         const tr=await fetch('https://api.tavily.com/extract',{
           method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({api_key:TAVILY_KEY,urls:[cleanUrl]})
+          headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
+          body:JSON.stringify({urls:[cleanUrl]})
         });
         const td=await tr.json();
         content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
       }catch(ex){content='';}
-      if(!content||content.length<100) throw new Error('Could not extract PDF text. The PDF may be scanned or image-based — text extraction requires a text-based PDF.');
+      if(!content||content.length<100) throw new Error('Could not extract PDF text. The PDF may be scanned or image-based.');
     } else {
       btn.innerHTML='<span class="spin">⟳</span> Reading article…';
       const tr=await fetch(`https://api.tavily.com/extract`,{
         method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({api_key:TAVILY_KEY,urls:[l.url]})
+        headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
+        body:JSON.stringify({urls:[l.url]})
       });
       const td=await tr.json();
       content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
