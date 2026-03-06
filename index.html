@@ -152,12 +152,18 @@ body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;f
 .research-input{flex:1;min-width:180px;background:var(--white);border:1.5px solid var(--border);border-radius:9px;padding:9px 13px;color:var(--ink);font-family:'DM Sans',sans-serif;font-size:13.5px;outline:none;transition:border-color .2s}
 .research-input:focus{border-color:var(--accent)}
 .research-input::placeholder{color:var(--ink3)}
-.research-btn{background:var(--accent);color:white;border:none;border-radius:9px;padding:9px 18px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .2s;white-space:nowrap;box-shadow:0 2px 10px rgba(45,106,79,.2)}
-.research-btn:hover{background:#245a42;transform:translateY(-1px)}
-.research-btn:disabled{opacity:.6;cursor:not-allowed;transform:none}
-.research-btn .spin{animation:spin .8s linear infinite;display:inline-block}
+.research-bar{display:flex;align-items:center;gap:8px;background:var(--white);border:1.5px solid var(--border);border-radius:14px;padding:8px 10px;margin-bottom:14px;box-shadow:0 2px 12px rgba(0,0,0,.06);flex-wrap:wrap}
+.research-input{flex:1;min-width:120px;background:none;border:none;outline:none;font-family:'DM Sans',sans-serif;font-size:13.5px;color:var(--ink);padding:4px 4px}
+.research-input::placeholder{color:var(--ink3)}
+.res-filters-inline{display:flex;gap:5px;flex-wrap:wrap}
+.res-filter{background:none;border:1.5px solid var(--border);border-radius:20px;padding:4px 11px;font-size:11px;font-family:'DM Sans',sans-serif;font-weight:500;color:var(--ink3);cursor:pointer;transition:all .15s;white-space:nowrap}
+.res-filter:hover{border-color:var(--accent);color:var(--accent)}
+.res-filter.active{background:var(--accent);border-color:var(--accent);color:white}
+.research-btn{background:var(--accent);color:white;border:none;border-radius:9px;padding:8px 16px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:7px;transition:all .2s;white-space:nowrap;box-shadow:0 2px 10px rgba(45,106,79,.2)}
+.research-btn:hover{background:#245a42}
+.research-btn:disabled{opacity:.6;cursor:not-allowed}
+.research-btn .spin,.spin{animation:spin .8s linear infinite;display:inline-block}
 @keyframes spin{to{transform:rotate(360deg)}}
-.research-lbl{font-size:12px;font-weight:600;color:var(--accent);font-family:'DM Sans',sans-serif;white-space:nowrap}
 
 /* ── RESEARCH RESULTS ── */
 .research-results{background:var(--white);border:1px solid var(--border);border-radius:var(--r2);margin-bottom:18px;overflow:hidden;animation:slideIn .3s cubic-bezier(.16,1,.3,1)}
@@ -182,7 +188,8 @@ body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;f
 .res-filter:hover{border-color:var(--accent);color:var(--accent)}
 .res-filter.active{background:var(--accent);border-color:var(--accent);color:white}
 .rr-more-btn{width:100%;padding:10px;background:var(--surface);border:1.5px dashed var(--border2);border-radius:9px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:500;color:var(--ink2);cursor:pointer;transition:all .2s;margin-top:6px}
-.rr-more-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(45,106,79,.04)}padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface)}
+.rr-more-btn:hover{border-color:var(--accent);color:var(--accent);background:rgba(45,106,79,.04)}
+.rr-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--surface)}
 .rr-sel-count{font-size:12.5px;color:var(--ink2);font-weight:500}
 .rr-add-sel{background:var(--accent);color:white;border:none;border-radius:9px;padding:9px 20px;font-family:'DM Sans',sans-serif;font-weight:600;font-size:13px;cursor:pointer;transition:all .2s;display:flex;align-items:center;gap:7px;box-shadow:0 2px 10px rgba(45,106,79,.25)}
 .rr-add-sel:hover{background:#245a42;transform:translateY(-1px)}
@@ -430,7 +437,6 @@ body{background:var(--cream);color:var(--ink);font-family:'DM Sans',sans-serif;f
       <div class="topbar" id="tb" style="display:none">
         <div class="tb-title" id="tbt"></div>
         <div class="vpills"><button class="vp active" id="vg" onclick="sv('grid')">⊞ Grid</button><button class="vp" id="vl" onclick="sv('list')">☰ List</button></div>
-        <button class="tb-research-btn" id="tbResBtn" onclick="toggleResearch()" style="display:none">🔍 <span class="albl">AI Research</span></button>
         <button class="add-btn" onclick="olm()">＋ <span class="albl">Add Resource</span></button>
       </div>
       <div class="content" id="ca">
@@ -656,9 +662,7 @@ function rC(){
   document.getElementById('tb').style.display='flex';
   const name=subj?.name||'';
   document.getElementById('tbt').innerHTML=q?`🔍 "${e(S.q)}"`:subj?`<span style="margin-right:6px">${subj.emoji||'📚'}</span>${e(name)}`:'';
-  // Show AI Research button in topbar only when on a subject page
-  const tbResBtn=document.getElementById('tbResBtn');
-  if(tbResBtn) tbResBtn.style.display=(subj&&!q)?'block':'none';
+
 
   let html='';
 
@@ -675,19 +679,17 @@ function rC(){
       </div>
     </div>`;
 
-    // Research panel (hidden by default)
-    html+=`<div id="resPanel" style="display:none">
+    // Research panel — always visible
+    html+=`<div id="resPanel">
       <div class="research-bar">
-        <div class="research-lbl">🔍 AI Research</div>
-        <input class="research-input" id="resInput" placeholder="Search for resources…" value="${e(subj.name)}" onkeydown="if(event.key==='Enter')doResearch()">
-        <button class="research-btn" id="resSrchBtn" onclick="doResearch()">🔍 Search</button>
-        <button class="research-btn" onclick="toggleResearch()" style="background:var(--surface);color:var(--ink2);border:1px solid var(--border);box-shadow:none">✕</button>
-      </div>
-      <div style="display:flex;gap:6px;padding:0 0 10px 0;flex-wrap:wrap">
-        <button class="res-filter active" id="rf-all" onclick="setResFilter('all')">🌐 All</button>
-        <button class="res-filter" id="rf-video" onclick="setResFilter('video')">▶ Videos</button>
-        <button class="res-filter" id="rf-article" onclick="setResFilter('article')">📄 Articles</button>
-        <button class="res-filter" id="rf-course" onclick="setResFilter('course')">🎓 Paid Courses</button>
+        <input class="research-input" id="resInput" placeholder="🔍 Search for resources…" value="${e(subj.name)}" onkeydown="if(event.key==='Enter')doResearch()">
+        <div class="res-filters-inline">
+          <button class="res-filter active" id="rf-all" onclick="setResFilter('all')">All</button>
+          <button class="res-filter" id="rf-video" onclick="setResFilter('video')">▶ Videos</button>
+          <button class="res-filter" id="rf-article" onclick="setResFilter('article')">📄 Articles</button>
+          <button class="res-filter" id="rf-course" onclick="setResFilter('course')">🎓 Courses</button>
+        </div>
+        <button class="research-btn" id="resSrchBtn" onclick="doResearch()">Search</button>
       </div>
       <div id="resResults"></div>
     </div>`;
