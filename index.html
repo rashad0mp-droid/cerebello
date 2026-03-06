@@ -873,9 +873,11 @@ async function uploadPdfToCloudinary(file){
   fd.append('file',file);
   fd.append('upload_preset',CLOUDINARY_PRESET);
   fd.append('resource_type','raw');
+  // Use raw endpoint for PDFs so they are accessible as files not images
   const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/raw/upload`,{method:'POST',body:fd});
   const data=await res.json();
   if(!res.ok) throw new Error(data.error?.message||'Upload failed');
+  // Ensure URL ends with .pdf for proper serving
   return data.secure_url;
 }
 window.olm=function(id=null){
@@ -945,7 +947,26 @@ window.odm=function(id){
   document.getElementById('dt').textContent=l.title;
   document.getElementById('du').textContent=l.url;document.getElementById('du').href=l.url;
   document.getElementById('doa').href=l.url;document.getElementById('dn').value=l.note||'';
-  document.getElementById('dthc').innerHTML=l.thumbnail?`<img class="dth" src="${e(l.thumbnail)}" onerror="this.parentElement.innerHTML='<div class=dthp>${tEm(l.type)}</div>'" alt="">`: `<div class="dthp">${tEm(l.type)}</div>`;
+
+  // Thumbnail / preview area
+  if(l.type==='pdf'){
+    document.getElementById('dthc').innerHTML=`
+    <div style="background:var(--surface);border-bottom:1px solid var(--border);padding:12px 18px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span style="font-size:22px">📄</span>
+      <span style="font-size:13px;font-weight:500;color:var(--ink);flex:1">${e(l.title)}</span>
+      <a href="${e(l.url)}" target="_blank" rel="noopener" class="olnk" style="font-size:11.5px">⬇ Download PDF</a>
+    </div>
+    <iframe src="https://docs.google.com/viewer?url=${encodeURIComponent(l.url)}&embedded=true" 
+      style="width:100%;height:320px;border:none;display:block;background:var(--surface)" 
+      title="${e(l.title)}"
+      onerror="this.style.display='none'">
+    </iframe>`;
+  } else if(l.thumbnail){
+    document.getElementById('dthc').innerHTML=`<img class="dth" src="${e(l.thumbnail)}" onerror="this.parentElement.innerHTML='<div class=dthp>${tEm(l.type)}</div>'" alt="">`;
+  } else {
+    document.getElementById('dthc').innerHTML=`<div class="dthp">${tEm(l.type)}</div>`;
+  }
+
   const aiSection=document.getElementById('aiSection'),aiResult=document.getElementById('aiResult'),aiBtn=document.getElementById('aiBtn');
   const canSummarize=l.type!=='other'||l.url.startsWith('http');
   if(canSummarize){
@@ -970,7 +991,7 @@ async function callAI(content,title,isVideo){
     :`Here is the content of an article titled "${title}":\n\n---\n${content.slice(0,12000)}\n---\n\nExtract 6-10 specific key takeaways from this article. For articles there are no timestamps so use empty string and 0.\n\nRespond ONLY with valid JSON, no markdown:\n{"takeaways":[{"point":"Specific insight from this article","timestamp":"","seconds":0}]}`;
   const res=await fetch('https://openrouter.ai/api/v1/chat/completions',{
     method:'POST',
-    headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENROUTER_KEY}`,'HTTP-Referer':'https://kaleidoscopic-semolina-829090.netlify.app','X-Title':'Cerebello'},
+    headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENROUTER_KEY}`,'HTTP-Referer':'https://cerebello.vercel.app','X-Title':'Cerebello'},
     body:JSON.stringify({model:'openrouter/free',messages:[{role:'user',content:prompt}]})
   });
   const data=await res.json();
@@ -1025,29 +1046,15 @@ window.summarizeVideo=async function(){
       if(!content||content.length<100) throw new Error('Transcript too short for this video');
     } else if(isPdf){
       btn.innerHTML='<span class="spin">⟳</span> Reading PDF…';
-      // Fetch PDF as base64 and send to Claude via OpenRouter
-      const pdfRes=await fetch(l.url);
-      if(!pdfRes.ok) throw new Error('Could not fetch PDF file');
-      const blob=await pdfRes.blob();
-      const base64=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(blob)});
-      btn.innerHTML='<span class="spin">⟳</span> Summarizing PDF…';
-      const aiRes=await fetch('https://openrouter.ai/api/v1/chat/completions',{
+      // Use Tavily to extract PDF text
+      const tr=await fetch(`https://api.tavily.com/extract`,{
         method:'POST',
-        headers:{'Content-Type':'application/json','Authorization':`Bearer ${OPENROUTER_KEY}`,'HTTP-Referer':'https://kaleidoscopic-semolina-829090.netlify.app','X-Title':'Cerebello'},
-        body:JSON.stringify({model:'google/gemini-2.0-flash-001',messages:[{role:'user',content:[
-          {type:'text',text:`Extract 6-10 specific key takeaways from this PDF titled "${l.title}". Respond ONLY with valid JSON:\n{"takeaways":[{"point":"Specific insight","timestamp":"","seconds":0}]}`},
-          {type:'image_url',image_url:{url:`data:application/pdf;base64,${base64}`}}
-        ]}]})
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({api_key:TAVILY_KEY,urls:[l.url]})
       });
-      const aiData=await aiRes.json();
-      if(!aiRes.ok) throw new Error(aiData.error?.message||'AI error');
-      let text=aiData.choices?.[0]?.message?.content||'';
-      text=text.replace(/```json|```/g,'').trim();
-      const parsed=JSON.parse(text);
-      result.innerHTML=renderSummaryHTML(parsed.takeaways,l,false);
-      S.aiSummaryData=parsed.takeaways;
-      btn.innerHTML='<span>✨</span> Re-summarize';btn.disabled=false;
-      return;
+      const td=await tr.json();
+      content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
+      if(!content||content.length<100) throw new Error('Could not extract PDF content. Try a different PDF.');
     } else {
       btn.innerHTML='<span class="spin">⟳</span> Reading article…';
       const tr=await fetch(`https://api.tavily.com/extract`,{
