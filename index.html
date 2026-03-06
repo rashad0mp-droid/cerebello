@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Cerebello — Learn Anything</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,700;1,9..144,300;1,9..144,500&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -1097,11 +1096,19 @@ window.summarizeVideo=async function(){
       content=td.content;
       if(!content||content.length<100) throw new Error('Transcript too short for this video');
     } else if(isPdf){
-      btn.innerHTML='<span class="spin">⟳</span> Reading PDF…';
+      btn.innerHTML='<span class="spin">⟳</span> Loading PDF reader…';
       const cleanUrl=l.url.replace('/fl_attachment','');
       try{
+        if(!window.pdfjsLib){
+          await new Promise((res,rej)=>{
+            const s=document.createElement('script');
+            s.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+            s.onload=res;s.onerror=rej;
+            document.head.appendChild(s);
+          });
+        }
         const pdfjs=window.pdfjsLib;
-        if(!pdfjs) throw new Error('PDF reader not loaded. Please refresh the page.');
+        if(!pdfjs) throw new Error('PDF reader failed to load. Please refresh.');
         pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
         const loadingTask=pdfjs.getDocument({url:cleanUrl,withCredentials:false});
         const pdf=await loadingTask.promise;
