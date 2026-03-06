@@ -728,11 +728,6 @@ window.setResFilter=function(f){
     const el=document.getElementById(`rf-${x}`);
     if(el) el.classList.toggle('active',x===f);
   });
-  resPage=0;
-  S.resResults=[];
-  S.resSelected=new Set();
-  S.resAdded=new Set();
-  doResearch();
 };
 
 function buildQuery(q,filter){
