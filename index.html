@@ -689,7 +689,7 @@ function rC(){
     </div>`;
   }
 
-  html+=`<div class="shdr"><div class="sttl">🔗 Resources <span class="scnt">${links.length}</span></div>${subj&&!q?`<button class="research-btn" onclick="toggleResearch()" style="margin-left:auto;padding:6px 14px;font-size:11.5px">🔍 Find More</button><button class="research-btn" onclick="olm()" style="padding:6px 14px;font-size:11.5px;background:var(--white);color:var(--ink2);border:1px solid var(--border);box-shadow:none">＋ Add Manually</button>`:''}
+  html+=`<div class="shdr"><div class="sttl">🔗 Resources <span class="scnt">${links.length}</span></div>${subj&&!q?`<button class="research-btn" onclick="toggleResearch()" style="margin-left:auto;padding:6px 14px;font-size:11.5px">🔍 AI Research</button><button class="research-btn" onclick="olm()" style="padding:6px 14px;font-size:11.5px;background:var(--white);color:var(--ink2);border:1px solid var(--border);box-shadow:none">＋ Add</button>`:''}
   </div>`;
   if(!links.length) html+=`<div class="empty"><div class="ei">${q?'🔍':'🌐'}</div><div class="et">${q?'No results':'No resources yet'}</div><div class="es">${q?'Try a different search':'Use AI Research above or add resources manually.'}</div></div>`;
   else html+=S.view==='grid'?`<div class="grid">${links.map(cg).join('')}</div>`:`<div class="lview">${links.map(cl).join('')}</div>`;
@@ -768,7 +768,7 @@ window.doResearch=async function(loadMore=false){
     S.resResults=[...S.resResults,...fresh];
     resPage++;
     if(!S.resResults.length){resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--ink3);text-align:center">No results found. Try a different search.</div>`;return}
-    renderResResults();
+    renderResResults(loadMore);
   }catch(err){
     if(!loadMore) resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--red)">Research error: ${err.message}</div>`;
   }finally{
@@ -776,30 +776,65 @@ window.doResearch=async function(loadMore=false){
   }
 };
 
-function renderResResults(){
+function renderResResults(loadMore=false){
   const resDiv=document.getElementById('resResults');
   if(!resDiv)return;
-  let html=`<div class="research-results"><div class="rr-head"><div class="rr-title">🔍 Results <span style="background:var(--surface);padding:2px 8px;border-radius:20px;font-size:10px;color:var(--ink3)">${S.resResults.length}</span></div><button class="rr-close" onclick="document.getElementById('resResults').innerHTML=''">✕</button></div>`;
-  S.resResults.forEach((r,i)=>{
-    const favicon=`https://www.google.com/s2/favicons?sz=32&domain=${dom(r.url)}`;
-    const isAdded=S.resAdded&&S.resAdded.has(i);
-    html+=`<div class="rr-item${isAdded?' added-perm':''}" id="rri${i}" onclick="toggleSelect(${i})">
-      <div class="rr-check" id="rrck${i}">${isAdded?'✓':''}</div>
-      <div class="rr-favicon"><img src="${favicon}" alt="" onerror="this.parentElement.textContent='🌐'"></div>
-      <div class="rr-inf">
-        <div class="rr-ttl">${e(r.title)}</div>
-        <div class="rr-url">${e(dom(r.url))}</div>
-        <div class="rr-snip">${e(r.content?.slice(0,150)||'')}</div>
-      </div>
-    </div>`;
-  });
-  html+=`<div class="rr-footer">
-    <div class="rr-sel-count" id="rrSelCount">Tap items to select</div>
-    <button class="rr-add-sel" id="rrAddBtn" onclick="addSelectedResults()" disabled>＋ Add Selected</button>
-  </div>
-  <button class="rr-more-btn" onclick="doResearch(true)">🔍 More Sources</button>
-  </div>`;
-  resDiv.innerHTML=html;
+
+  if(loadMore){
+    // Remove old footer and more button
+    resDiv.querySelector('.rr-footer')?.remove();
+    resDiv.querySelector('.rr-more-btn')?.remove();
+    // Append only new items
+    const prevCount=resDiv.querySelectorAll('.rr-item').length;
+    S.resResults.slice(prevCount).forEach((r,idx)=>{
+      const i=prevCount+idx;
+      const favicon=`https://www.google.com/s2/favicons?sz=32&domain=${dom(r.url)}`;
+      const isAdded=S.resAdded&&S.resAdded.has(i);
+      const item=document.createElement('div');
+      item.className=`rr-item${isAdded?' added-perm':''}`;
+      item.id=`rri${i}`;
+      item.onclick=()=>toggleSelect(i);
+      item.innerHTML=`<div class="rr-check" id="rrck${i}">${isAdded?'✓':''}</div>
+        <div class="rr-favicon"><img src="${favicon}" alt="" onerror="this.parentElement.textContent='🌐'"></div>
+        <div class="rr-inf">
+          <div class="rr-ttl">${e(r.title)}</div>
+          <div class="rr-url">${e(dom(r.url))}</div>
+          <div class="rr-snip">${e(r.content?.slice(0,150)||'')}</div>
+        </div>`;
+      resDiv.querySelector('.research-results').appendChild(item);
+    });
+  } else {
+    let html=`<div class="research-results"><div class="rr-head"><div class="rr-title">🔍 Results <span style="background:var(--surface);padding:2px 8px;border-radius:20px;font-size:10px;color:var(--ink3)">${S.resResults.length}</span></div><button class="rr-close" onclick="document.getElementById('resResults').innerHTML=''">✕</button></div>`;
+    S.resResults.forEach((r,i)=>{
+      const favicon=`https://www.google.com/s2/favicons?sz=32&domain=${dom(r.url)}`;
+      const isAdded=S.resAdded&&S.resAdded.has(i);
+      html+=`<div class="rr-item${isAdded?' added-perm':''}" id="rri${i}" onclick="toggleSelect(${i})">
+        <div class="rr-check" id="rrck${i}">${isAdded?'✓':''}</div>
+        <div class="rr-favicon"><img src="${favicon}" alt="" onerror="this.parentElement.textContent='🌐'"></div>
+        <div class="rr-inf">
+          <div class="rr-ttl">${e(r.title)}</div>
+          <div class="rr-url">${e(dom(r.url))}</div>
+          <div class="rr-snip">${e(r.content?.slice(0,150)||'')}</div>
+        </div>
+      </div>`;
+    });
+    resDiv.innerHTML=html+'</div>';
+  }
+
+  // Always add footer and more button at end
+  const wrap=resDiv.querySelector('.research-results');
+  if(wrap){
+    const footer=document.createElement('div');
+    footer.className='rr-footer';
+    footer.innerHTML=`<div class="rr-sel-count" id="rrSelCount">Tap items to select</div>
+      <button class="rr-add-sel" id="rrAddBtn" onclick="addSelectedResults()" disabled>＋ Add Selected</button>`;
+    wrap.appendChild(footer);
+    const moreBtn=document.createElement('button');
+    moreBtn.className='rr-more-btn';
+    moreBtn.textContent='🔍 More Sources';
+    moreBtn.onclick=()=>doResearch(true);
+    wrap.appendChild(moreBtn);
+  }
 }
 
 window.toggleSelect=function(i){
