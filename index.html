@@ -872,14 +872,11 @@ async function uploadPdfToCloudinary(file){
   const fd=new FormData();
   fd.append('file',file);
   fd.append('upload_preset',CLOUDINARY_PRESET);
-  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/raw/upload`,{method:'POST',body:fd});
+  // Use auto endpoint — Cloudinary will detect PDF and serve correctly
+  const res=await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`,{method:'POST',body:fd});
   const data=await res.json();
   if(!res.ok) throw new Error(data.error?.message||'Upload failed');
-  // Force correct content-type by adding fl_attachment flag in URL
-  let url=data.secure_url;
-  // Replace /upload/ with /upload/fl_attachment/ to force proper PDF serving
-  url=url.replace('/upload/','/upload/fl_attachment/');
-  return url;
+  return data.secure_url;
 }
 window.olm=function(id=null){
   S.elid=id;
