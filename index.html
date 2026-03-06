@@ -751,11 +751,12 @@ window.doResearch=async function(loadMore=false){
       method:'POST',
       headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
       body:JSON.stringify({
+        api_key:TAVILY_KEY,
         query,
         search_depth:'advanced',
         include_answer:false,
         max_results:8,
-        days:180 // last 6 months for freshness
+        days:180
       })
     });
     const data=await res.json();
@@ -1110,7 +1111,12 @@ window.summarizeVideo=async function(){
         const pdfjs=window.pdfjsLib;
         if(!pdfjs) throw new Error('PDF reader failed to load. Please refresh.');
         pdfjs.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const loadingTask=pdfjs.getDocument({url:cleanUrl,withCredentials:false});
+        // Fetch PDF as ArrayBuffer first to handle CORS
+        btn.innerHTML='<span class="spin">⟳</span> Fetching PDF…';
+        const pdfFetch=await fetch(cleanUrl);
+        if(!pdfFetch.ok) throw new Error('Could not fetch PDF file.');
+        const pdfBuffer=await pdfFetch.arrayBuffer();
+        const loadingTask=pdfjs.getDocument({data:pdfBuffer});
         const pdf=await loadingTask.promise;
         const totalPages=pdf.numPages;
         const chunkSize=20;
@@ -1164,7 +1170,7 @@ window.summarizeVideo=async function(){
       const tr=await fetch(`https://api.tavily.com/extract`,{
         method:'POST',
         headers:{'Content-Type':'application/json','Authorization':`Bearer ${TAVILY_KEY}`},
-        body:JSON.stringify({urls:[l.url]})
+        body:JSON.stringify({api_key:TAVILY_KEY,urls:[l.url]})
       });
       const td=await tr.json();
       content=td.results?.[0]?.raw_content||td.results?.[0]?.content||'';
