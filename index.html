@@ -1199,6 +1199,8 @@ window.copySummary=function(){
     toast('📋 Copied to clipboard!','success');
   }).catch(()=>toast('Could not copy','err'));
 };
+
+window.saveAISummary=async function(){
   if(!S.aiSummaryData||!S.dlid)return;
   const btn=document.getElementById('aiSaveBtn');
   btn.disabled=true;btn.innerHTML='💾 Saving…';
