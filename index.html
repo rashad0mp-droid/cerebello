@@ -626,7 +626,7 @@ const SUPADATA_KEY='sd_ee4e2d0221e4551b8f55edd512190a4e';
 const CLOUDINARY_CLOUD='dnnmplimy';
 const CLOUDINARY_PRESET='cerebello_uploads';
 
-const S={user:null,subjects:[],links:[],sid:null,view:'grid',elid:null,esid:null,dlid:null,q:'',em:'📚',utimer:null,unsubs:[],resResults:[],resSelected:new Set(),resAdded:new Set()};
+const S={user:null,subjects:[],links:[],sid:null,view:'grid',elid:null,esid:null,dlid:null,q:'',em:'📚',utimer:null,unsubs:[],resResults:[],resSelected:new Set(),resAdded:new Set(),lastOptimizedQuery:''};
 
 const sd=()=>document.getElementById('sdot');
 const syncing=()=>{sd().className='sb-logo-dot syncing';sd().title='Syncing…'};
@@ -823,12 +823,64 @@ window.setResFilter=function(f){
   });
 };
 
-function buildQuery(q,filter){
+// ── AI QUERY OPTIMIZER ──
+const JUNK_DOMAINS=['pinterest.com','pinterest.in','facebook.com','instagram.com','twitter.com','tiktok.com','snapchat.com','tumblr.com'];
+
+async function aiOptimizeQuery(userInput, filter){
   const year=new Date().getFullYear();
-  if(filter==='video') return `site:youtube.com ${q} tutorial ${year}`;
-  if(filter==='article') return `${q} tutorial guide blog ${year} -site:youtube.com -site:udemy.com -site:coursera.org`;
-  if(filter==='course') return `${q} course udemy coursera skillshare OR pluralsight OR edx`;
-  return `best resources learn ${q} ${year}`;
+  const filterInstructions={
+    video:`YouTube tutorial or educational video. Return a YouTube-optimized search query that will find the best video tutorials. Include "youtube" and relevant skill level terms.`,
+    article:`Blog post, guide, or in-depth article. Return a search query optimized for finding high-quality written tutorials, guides, or documentation. Exclude video platforms.`,
+    course:`Online course on Udemy, Coursera, edX, or similar platforms. Return a search query optimized for finding structured learning courses.`,
+    all:`Best learning resources of any type. Return a broad but precise search query to find the highest-quality educational content.`
+  };
+  const prompt=`You are a search query optimizer for an AI learning app called Cerebello.
+
+A user wants to learn about: "${userInput}"
+They are looking for: ${filterInstructions[filter]||filterInstructions.all}
+Current year: ${year}
+
+Your job: Rewrite their input into the most effective search query possible to find high-quality, relevant learning resources. The query should:
+- Be specific and targeted, not generic
+- Include the right keywords experts would use
+- Include the year ${year} for freshness
+- Be 5-12 words maximum
+- NOT change the subject/topic — only improve the phrasing
+
+Respond with ONLY the optimized search query, nothing else. No explanation, no quotes, just the query.`;
+
+  try{
+    const res=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':`Bearer ${GROQ_KEY}`},
+      body:JSON.stringify({
+        model:'llama-3.1-8b-instant',
+        max_tokens:60,
+        messages:[{role:'user',content:prompt}]
+      })
+    });
+    const data=await res.json();
+    const optimized=data.choices?.[0]?.message?.content?.trim();
+    if(optimized&&optimized.length>3&&optimized.length<200) return optimized;
+  }catch(err){}
+  // Fallback to rule-based if AI fails
+  return buildQueryFallback(userInput,filter);
+}
+
+function buildQueryFallback(q,filter){
+  const year=new Date().getFullYear();
+  if(filter==='video') return `best ${q} tutorial youtube ${year}`;
+  if(filter==='article') return `${q} complete guide tutorial ${year}`;
+  if(filter==='course') return `${q} online course udemy coursera ${year}`;
+  return `best resources to learn ${q} ${year}`;
+}
+
+function getTavilyParams(filter){
+  const base={search_depth:'advanced',include_answer:false,max_results:10,days:365};
+  if(filter==='video') return {...base,include_domains:['youtube.com'],max_results:8};
+  if(filter==='course') return {...base,include_domains:['udemy.com','coursera.org','edx.org','skillshare.com','pluralsight.com','linkedin.com'],max_results:8};
+  if(filter==='article') return {...base,exclude_domains:['youtube.com','udemy.com','coursera.org','edx.org',...JUNK_DOMAINS]};
+  return {...base,exclude_domains:JUNK_DOMAINS};
 }
 
 window.doResearch=async function(loadMore=false){
@@ -836,21 +888,31 @@ window.doResearch=async function(loadMore=false){
   const q=input?.value?.trim();
   if(!q||!resDiv)return;
   if(!loadMore){resPage=0;S.resResults=[];S.resSelected=new Set();S.resAdded=new Set();resDiv.innerHTML='';}
-  // Show loading in more button if loadMore
   const moreBtn=document.getElementById('rrMoreBtn');
   if(loadMore&&moreBtn){moreBtn.disabled=true;moreBtn.innerHTML='<span class="spin">⟳</span> Finding more…';}
-  else{btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Searching…';}
+  else{btn.disabled=true;btn.innerHTML='<span class="spin">⟳</span> Optimizing search…';}
   try{
-    // Use different offset for more results
-    const query=buildQuery(q,resFilter)+(loadMore?` more results page ${resPage+1}`:'');
+    // Step 1: AI optimizes the query
+    let query;
+    if(!loadMore){
+      query=await aiOptimizeQuery(q,resFilter);
+      S.lastOptimizedQuery=query; // store for More Sources
+    } else {
+      query=(S.lastOptimizedQuery||buildQueryFallback(q,resFilter))+` page ${resPage+1}`;
+    }
+
+    // Step 2: Tavily search with smart params
+    const tavilyParams=getTavilyParams(resFilter);
     const res=await fetch('https://api.tavily.com/search',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({api_key:TAVILY_KEY,query,search_depth:'advanced',include_answer:false,max_results:8,days:180})
+      body:JSON.stringify({api_key:TAVILY_KEY,query,...tavilyParams})
     });
     const data=await res.json();
     if(!res.ok) throw new Error(data.message||'Research failed');
-    const newResults=data.results||[];
+
+    // Step 3: Score filter — only keep results with score >= 0.3
+    const newResults=(data.results||[]).filter(r=>(r.score||0)>=0.3);
     const existingUrls=new Set(S.resResults.map(r=>r.url));
     const fresh=newResults.filter(r=>!existingUrls.has(r.url));
     if(!fresh.length&&loadMore){
@@ -859,7 +921,7 @@ window.doResearch=async function(loadMore=false){
     }
     S.resResults=[...S.resResults,...fresh];
     resPage++;
-    if(!S.resResults.length){resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--ink3);text-align:center">No results found.</div>`;return;}
+    if(!S.resResults.length){resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--ink3);text-align:center">No results found. Try a different search.</div>`;return;}
     renderResResults(loadMore,fresh);
   }catch(err){
     if(!loadMore) resDiv.innerHTML=`<div style="padding:14px;font-size:13px;color:var(--red)">Error: ${err.message}</div>`;
