@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Cerebello — Learn Anything</title>
+<meta name="description" content="Your personal AI learning companion. Create subjects, research with AI, build your knowledge library.">
+<meta name="theme-color" content="#5C3D8F">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Cerebello">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
 <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -124,7 +132,7 @@ body{background:var(--cream);color:var(--ink);font-family:'Nunito',sans-serif;fo
 .welcome{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px;text-align:center;padding:32px}
 .w-icon{font-size:56px;margin-bottom:4px}
 .w-title{font-family:'Nunito',sans-serif;font-weight:800;font-size:26px;color:var(--ink);letter-spacing:-1px}
-.w-title em{font-style:italic;color:var(--accent)}
+.w-title em{font-style:normal;color:var(--accent)}
 .w-desc{font-size:14px;color:var(--ink3);line-height:1.75;max-width:320px;font-weight:500}
 .w-pills{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:4px}
 .w-pill{padding:6px 14px;background:var(--white);border:1px solid var(--border);border-radius:20px;font-size:12px;color:var(--ink2);font-weight:600}
@@ -1378,6 +1386,13 @@ window.oc=(ev,id)=>{if(ev.target===document.getElementById(id))document.getEleme
 document.addEventListener('keydown',ev=>{
   if(ev.key==='Escape')['smod','lmod','dmod'].forEach(id=>document.getElementById(id).style.display='none');
 });
+</script>
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('sw.js').then(()=>console.log('SW registered')).catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
