@@ -861,6 +861,8 @@ window.setResTypeFilter=function(f){
   if(existingGrid) existingGrid.replaceWith(newContent.firstChild);
   else ca.appendChild(newContent.firstChild);
 };
+
+window.setResFilter=function(f){
   resFilter=f;
   ['all','video','article','course'].forEach(x=>{
     const el=document.getElementById(`rf-${x}`);
