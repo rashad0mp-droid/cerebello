@@ -196,8 +196,14 @@ body{background:var(--cream);color:var(--ink);font-family:'Nunito',sans-serif;fo
 .rr-add-sel:hover{background:var(--accent2);transform:translateY(-1px)}
 .rr-add-sel:disabled{opacity:.5;cursor:not-allowed;transform:none}
 
+/* ── RESOURCE TYPE FILTERS ── */
+.res-type-filters{display:flex;gap:5px;flex-wrap:wrap;margin-left:auto}
+.rtf{background:none;border:1.5px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;font-family:'Nunito',sans-serif;font-weight:700;color:var(--ink3);cursor:pointer;transition:all .15s;white-space:nowrap}
+.rtf:hover{border-color:var(--accent);color:var(--accent)}
+.rtf.active{background:var(--accent);border-color:var(--accent);color:white}
+
 /* ── SECTION HEADER ── */
-.shdr{display:flex;align-items:center;gap:9px;margin-bottom:13px}
+.shdr{display:flex;align-items:center;gap:9px;margin-bottom:13px;flex-wrap:wrap}
 .sttl{font-size:12px;font-weight:700;color:var(--ink2);display:flex;align-items:center;gap:7px;font-family:'Nunito',sans-serif}
 .scnt{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2px 8px;font-size:10.5px;color:var(--ink3);font-weight:600}
 
@@ -626,7 +632,7 @@ const SUPADATA_KEY='sd_ee4e2d0221e4551b8f55edd512190a4e';
 const CLOUDINARY_CLOUD='dnnmplimy';
 const CLOUDINARY_PRESET='cerebello_uploads';
 
-const S={user:null,subjects:[],links:[],sid:null,view:'grid',elid:null,esid:null,dlid:null,q:'',em:'📚',utimer:null,unsubs:[],resResults:[],resSelected:new Set(),resAdded:new Set(),lastOptimizedQuery:''};
+const S={user:null,subjects:[],links:[],sid:null,view:'grid',elid:null,esid:null,dlid:null,q:'',em:'📚',utimer:null,unsubs:[],resResults:[],resSelected:new Set(),resAdded:new Set(),lastOptimizedQuery:'',resTypeFilter:'all'};
 
 const sd=()=>document.getElementById('sdot');
 const syncing=()=>{sd().className='sb-logo-dot syncing';sd().title='Syncing…'};
@@ -719,7 +725,7 @@ function rStats(){
 }
 
 window.selS=function(id){
-  S.sid=id;S.q='';S.resSelected=new Set();S.resAdded=new Set();
+  S.sid=id;S.q='';S.resSelected=new Set();S.resAdded=new Set();S.resTypeFilter='all';
   document.getElementById('si').value='';
   rSB();rC();
   document.getElementById('tb').style.display='flex';
@@ -788,9 +794,21 @@ function rC(){
     </div>`;
   }
 
-  html+=`<div class="shdr"><div class="sttl">🔗 Resources <span class="scnt">${links.length}</span></div></div>`;
-  if(!links.length) html+=`<div class="empty"><div class="ei">${q?'🔍':'🌐'}</div><div class="et">${q?'No results':'No resources yet'}</div><div class="es">${q?'Try a different search':'Use AI Research above or add resources manually.'}</div></div>`;
-  else html+=S.view==='grid'?`<div class="grid">${links.map(cg).join('')}</div>`:`<div class="lview">${links.map(cl).join('')}</div>`;
+  html+=`<div class="shdr">
+    <div class="sttl">🔗 Resources <span class="scnt">${links.length}</span></div>
+    <div class="res-type-filters" id="resTypeFilters">
+      <button class="rtf active" id="rtf-all" onclick="setResTypeFilter('all')">All</button>
+      <button class="rtf" id="rtf-video" onclick="setResTypeFilter('video')">▶ Videos</button>
+      <button class="rtf" id="rtf-article" onclick="setResTypeFilter('article')">📄 Articles</button>
+      <button class="rtf" id="rtf-course" onclick="setResTypeFilter('course')">🎓 Courses</button>
+      <button class="rtf" id="rtf-pdf" onclick="setResTypeFilter('pdf')">📑 PDFs</button>
+    </div>
+  </div>`;
+  const filteredLinks=S.resTypeFilter&&S.resTypeFilter!=='all'
+    ? links.filter(l=>l.type===S.resTypeFilter||(S.resTypeFilter==='video'&&isYT(l.url)))
+    : links;
+  if(!filteredLinks.length) html+=`<div class="empty"><div class="ei">${q?'🔍':S.resTypeFilter&&S.resTypeFilter!=='all'?'🔎':'🌐'}</div><div class="et">${q?'No results':S.resTypeFilter&&S.resTypeFilter!=='all'?`No ${S.resTypeFilter}s yet`:'No resources yet'}</div><div class="es">${q?'Try a different search':S.resTypeFilter&&S.resTypeFilter!=='all'?`Add some ${S.resTypeFilter}s using AI Research above`:'Use AI Research above or add resources manually.'}</div></div>`;
+  else html+=S.view==='grid'?`<div class="grid">${filteredLinks.map(cg).join('')}</div>`:`<div class="lview">${filteredLinks.map(cl).join('')}</div>`;
   document.getElementById('ca').innerHTML=html;
 }
 
@@ -815,7 +833,34 @@ window.toggleResearch=function(){
 let resFilter='all';
 let resPage=0;
 
-window.setResFilter=function(f){
+window.setResTypeFilter=function(f){
+  // Toggle off if clicking active non-all filter
+  if(S.resTypeFilter===f&&f!=='all'){f='all';}
+  S.resTypeFilter=f;
+  ['all','video','article','course','pdf'].forEach(x=>{
+    const el=document.getElementById(`rtf-${x}`);
+    if(el) el.classList.toggle('active',x===f);
+  });
+  // Re-render just the grid/list without rebuilding whole page
+  const subj=S.subjects.find(s=>s.id===S.sid);
+  const q=S.q.toLowerCase();
+  let links=q?S.links.filter(l=>l.title?.toLowerCase().includes(q)||l.url?.toLowerCase().includes(q)||(l.note||'').toLowerCase().includes(q)):S.links.filter(l=>l.subjectId===S.sid);
+  const filteredLinks=f&&f!=='all'?links.filter(l=>l.type===f||(f==='video'&&isYT(l.url))):links;
+  // Update count badge
+  const scnt=document.querySelector('.scnt');
+  if(scnt) scnt.textContent=links.length;
+  // Find and replace just the grid/list + empty state
+  const ca=document.getElementById('ca');
+  const existingGrid=ca.querySelector('.grid,.lview,.empty');
+  const newContent=document.createElement('div');
+  if(!filteredLinks.length){
+    newContent.innerHTML=`<div class="empty"><div class="ei">${f!=='all'?'🔎':'🌐'}</div><div class="et">${f!=='all'?`No ${f}s yet`:'No resources yet'}</div><div class="es">${f!=='all'?`Add some ${f}s using AI Research above`:'Use AI Research above or add resources manually.'}</div></div>`;
+  } else {
+    newContent.innerHTML=S.view==='grid'?`<div class="grid">${filteredLinks.map(cg).join('')}</div>`:`<div class="lview">${filteredLinks.map(cl).join('')}</div>`;
+  }
+  if(existingGrid) existingGrid.replaceWith(newContent.firstChild);
+  else ca.appendChild(newContent.firstChild);
+};
   resFilter=f;
   ['all','video','article','course'].forEach(x=>{
     const el=document.getElementById(`rf-${x}`);
